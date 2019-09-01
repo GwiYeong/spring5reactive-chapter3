@@ -11,28 +11,46 @@ public class step1 {
 
     public ListenableFuture<?> requestData() {
 
-        AsyncRestTemplate httpClient;
-        AsyncDatabaseClient databaseClient;
+        AsyncRestTemplate<String> httpClient;
+        AsyncDatabaseClient<String> databaseClient;
 
         // api 호출 후 db에 저장하고 사용자에게 데이터 리턴.
-        //TODO
+        CompletionStage<String> completionStage = AsyncAdapters.toCompletion(
+                httpClient.execute()
+        );
+        return AsyncAdapters.toListenable(
+                databaseClient.store(completionStage)
+        );
 
     }
 }
 
-interface AsyncRestTemplate {
+interface AsyncRestTemplate<T> {
     <T> ListenableFuture<T> execute();
 }
-interface AsyncDatabaseClient {
+interface AsyncDatabaseClient<T> {
     <T> CompletionStage<T> store(CompletionStage<T> stage);
 }
 
 final class AsyncAdapters {
     public static <T> CompletionStage<T> toCompletion(ListenableFuture<T> future) {
-        //TODO
+        CompletableFuture<T> completableFuture = new CompletableFuture<>();
+        future.addCallback(
+                completableFuture::complete,
+                completableFuture::completeExceptionally
+        );
+        return completableFuture;
     }
 
     public static <T> ListenableFuture<T>  toListenable(CompletionStage<T> stage) {
-        //TODO
+        SettableListenableFuture<T> future = new SettableListenableFuture<>();
+        stage.whenComplete((v, t) -> {
+            if (t == null) {
+                future.set(v);
+            } else {
+                future.setException(t);
+            }
+        });
+        return future;
     }
 }

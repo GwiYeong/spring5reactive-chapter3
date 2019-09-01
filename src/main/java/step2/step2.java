@@ -5,6 +5,7 @@ import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,7 +17,7 @@ public class step2 {
         NewsServiceSubscriber subscriber = new NewsServiceSubscriber(5);
         newsService.subscribe(subscriber);
 
-        subscriber.eventuallyReadDigest();
+        Optional<NewsLetter> letter = subscriber.eventuallyReadDigest();
     }
 }
 
@@ -34,12 +35,43 @@ class NewsServiceSubscriber implements Subscriber<NewsLetter> {
     final int take;
     final AtomicInteger remaining = new AtomicInteger();
     Subscription subscription;
-    
+
     public NewsServiceSubscriber(int take) {
         this.take = take;
     }
 
-    void eventuallyReadDigest() {
-        //TODO
+
+
+    Optional<NewsLetter> eventuallyReadDigest() {
+        NewsLetter letter = mailbox.poll();
+        if (letter != null) {
+            if (remaining.decrementAndGet() == 0) {
+                subscription.request(take);
+                remaining.set(take);
+            }
+            return Optional.of(letter);
+        }
+        return Optional.empty();
     };
+
+    @Override
+    public void onSubscribe(Subscription subscription) {
+        this.subscription = subscription;
+        subscription.request(take);
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+        // Nothing to do
+    }
+
+    @Override
+    public void onComplete() {
+        // Nothing to do
+    }
+
+    @Override
+    public void onNext(NewsLetter newsLetter) {
+        mailbox.offer(newsLetter);
+    }
 }
